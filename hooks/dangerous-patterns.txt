@@ -1,0 +1,42 @@
+# ============================================================
+# Global agent guardrails - dangerous command denylist
+# One POSIX-ERE regex per line (grep -E). Comments start with #.
+# Use [[:space:]], never \s (adapters auto-convert [:space:] to \s).
+# Design rule: block ONLY irreversible/catastrophic commands.
+# After ANY change: run ~/.agents/hooks/test-guard.sh (must end "failed: 0").
+# ============================================================
+
+# --- Recursive rm aimed at filesystem root, home, or a drive root ---
+(^|[;&|[:space:]])rm[[:space:]]+(-[a-zA-Z]+[[:space:]]+|--[a-z-]+[[:space:]]+)*(-[a-zA-Z]*r[a-zA-Z]*|--recursive)[[:space:]]+([^;&|[:space:]]+[[:space:]]+)*["']?(/|/\*|/[a-zA-Z]|/[a-zA-Z]/|~|~/|\$HOME/?|\$\{HOME\}/?|%USERPROFILE%\\?|[A-Za-z]:[/\\]{0,2})["']?([[:space:]]|$)
+
+# --- sudo rm with a recursive flag (root-privileged recursive delete) ---
+(^|[;&|[:space:]])sudo[[:space:]]+rm([[:space:]]+[^;&|[:space:]]+)*[[:space:]]+(-[a-zA-Z]*r[a-zA-Z]*|--recursive)([[:space:]]|$)
+
+# --- dd writing to a raw disk device ---
+(^|[;&|[:space:]])dd[[:space:]]+[^;&|]*of=["']?/dev/(sd[a-z]|hd[a-z]|vd[a-z]|xvd[a-z]|nvme[0-9]|mmcblk[0-9]|disk[0-9]|sr[0-9])
+(^|[;&|[:space:]])dd[[:space:]]+[^;&|]*of=[^[:space:]]*PhysicalDrive
+
+# --- mkfs (filesystem creation wipes the target) ---
+(^|[;&|[:space:]])mkfs(\.[A-Za-z0-9]+)?([[:space:]]|$)
+
+# --- classic fork bomb ---
+:\(\)[[:space:]]*\{[[:space:]]*:[[:space:]]*\|[[:space:]]*:
+
+# --- piping a download straight into a shell ---
+(^|[;&|[:space:]])(curl|wget)[[:space:]][^|;&]*\|[[:space:]]*(sudo[[:space:]]+)?(ba|z|da|k)?sh([[:space:]]|$)
+\|[[:space:]]*(iex|[Ii]nvoke-[Ee]xpression)([[:space:]]|$)
+(^|[;&|[:space:]])iex[[:space:]]*\([[:space:]]*(iwr|curl|wget|[Ii]nvoke-[Ww]eb[Rr]equest|[Ii]nvoke-[Rr]est[Mm]ethod)
+
+# --- git history destruction (--force-with-lease stays allowed) ---
+(^|[;&|[:space:]])git[[:space:]]+push[[:space:]]+([^;&|[:space:]]+[[:space:]]+)*(-f|--force)([[:space:]]|$)
+
+# --- GitHub repo deletion ---
+(^|[;&|[:space:]])gh[[:space:]]+repo[[:space:]]+delete([[:space:]]|$)
+
+# --- PowerShell/cmd recursive delete of a drive root or home ---
+(^|[;&|[:space:]])([Rr]emove-[Ii]tem|rm|del|rd|ri)[[:space:]][^;&|]*-[Rr]ecurse[^;&|]*[[:space:]]["']?([A-Za-z]:[/\\]{0,2}|\$env:USERPROFILE[/\\]?|\$HOME[/\\]?|~)["']?([[:space:]]|$)
+(^|[;&|[:space:]])([Rr]emove-[Ii]tem|rm|del|rd|ri)[[:space:]]+([^;&|]*[[:space:]])?["']?([A-Za-z]:[/\\]{0,2}|\$env:USERPROFILE[/\\]?|\$HOME[/\\]?|~)["']?[[:space:]][^;&|]*-[Rr]ecurse([[:space:]]|$)
+
+# --- disk formatting on Windows ---
+(^|[;&|[:space:]])([Ff]ormat-[Vv]olume|[Cc]lear-[Dd]isk)([[:space:]]|$)
+(^|[;&|[:space:]])format(\.com|\.exe)?[[:space:]]+[A-Za-z]:[[:space:]]*$
